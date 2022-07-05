@@ -10,7 +10,7 @@ pdftk *.png.png.pdf cat output bw.pdf
 
 pdfjam --paper a4paper --outfile out.pdf bw.pdf
 
-find -name "*.png" -delete
+find -name "*.png*" -delete
 
 rm bw.pdf
 
