@@ -4,7 +4,9 @@ pdftoppm -png -r 300 "$1" p
 
 find -name "p*.png" -execdir convert -density 400 {} -adaptive-sharpen 1 -colorspace Gray -brightness-contrast 5x45 -quality 100 {}.png \;
 
-convert "*.png.png" bw.pdf
+find -name "*.png.png" -execdir convert {} {}.pdf \;
+
+pdftk *.png.png.pdf cat output bw.pdf
 
 pdfjam --paper a4paper --outfile out.pdf bw.pdf
 
