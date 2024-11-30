@@ -12,6 +12,7 @@ Options:
  -r, --resolution   Set the resolution for the output images (default: 300)
  -b, --brightness   Set the brightness adjustment (default: 5)
  -c, --contrast     Set the contrast adjustment (default: 45)
+ -Q, --quality      Set the quality (default: 80)
  -q, --quiet        Run the script with minimal output (no logging)
  -h, --help         Display a help message and exit
 
@@ -23,7 +24,7 @@ Dependencies:
 - pdftoppm (to convert PDF to images)
 - convert (from ImageMagick for image manipulation)
 - pdftk (to concatenate PDFs)
-- pdfjam (to resize PDFs)
+- gs (to resize PDFs)
 
 Author: Florian Jäckel (tutebatti)
 Date: 2024-11

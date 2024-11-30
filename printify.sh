@@ -9,15 +9,16 @@
 # and saved as a new file.
 #
 # Options:
-#  -p, --paperformat  Set the paper format (default: a4paper)
+#  -p, --paperformat  Set the paper format according to ghostscript’s -sPAPERSIZE (default: a4)
 #  -r, --resolution   Set the resolution for the output images (default: 300)
 #  -b, --brightness   Set the brightness adjustment (default: 5)
 #  -c, --contrast     Set the contrast adjustment (default: 45)
+#  -Q, --quality      Set the quality (default: 80)
 #  -q, --quiet        Run the script with minimal output (no logging)
 #  -h, --help         Display a help message and exit
 #
 # Example usage:
-# ./script.sh input.pdf -r 600 -b 10 -c 50 -p letterpaper
+# ./script.sh input.pdf -r 600 -b 10 -c 50 -p letter
 #
 # Dependencies:
 # - pdftoppm (to convert PDF to images)
@@ -31,9 +32,10 @@
 
 # Default values
 resolution=300
-pageformat="a4paper"
+pageformat="a4"
 brightness=5
 contrast=45
+quality=80
 
 # Parse command-line arguments (flags)
 parse_args() {
@@ -53,6 +55,10 @@ parse_args() {
                 ;;
             -c|--contrast)
                 contrast="$2"
+                shift 2
+                ;;
+            -Q|--quality)
+                quality="$2"
                 shift 2
                 ;;
             -q|--quiet)
@@ -127,14 +133,13 @@ check_overwrite() {
     fi
 }
 
-# Quiet handling for commands
 run_command() {
     local cmd="$1"
     shift
     if [ -z "$quiet" ]; then
-        "$cmd" "$@"
-    else
         "$cmd" "$@" &>/dev/null
+    else
+        "$cmd" "$@"
     fi
     if [ $? -ne 0 ]; then
         echo "Error: '$cmd' failed"
@@ -142,10 +147,36 @@ run_command() {
     fi
 }
 
+prettify_pngs() {
+    local files=("$@")
+    for file in "${files[@]}"; do
+        base_name="${file%.png}"
+        output_file="${base_name}_adapted.png"
+        
+        convert "$file" \
+        -adaptive-sharpen 1 \
+        -colorspace Gray \
+        -brightness-contrast "$brightness"x"$contrast" \
+        -quality "$quality" \
+        -depth 8 \
+        "$output_file"
+    done
+}
+
+convert_pngs_to_pdfs() {
+    local files=("$@")
+    for file in "${files[@]}"; do
+        base_name="${file%.png}"
+        output_file="${base_name}.pdf"
+        
+        convert "$file" -compress zip "$output_file"
+    done
+}    
+
 # Main execution starts here
 
 # Check if necessary commands are installed
-commands=("pdftoppm" "convert" "pdftk" "pdfjam")
+commands=("pdftoppm" "convert" "pdftk" "gs")
 for cmd in "${commands[@]}"; do
     check_if_command_is_installed "$cmd" || exit 1
 done
@@ -157,6 +188,7 @@ check_input
 check_integer "$brightness" || exit 1
 check_integer "$resolution" || exit 1
 check_integer "$contrast" || exit 1
+check_integer "$quality" || exit 1
 check_overwrite
 
 # Temporary directory for intermediate files
@@ -167,17 +199,17 @@ echo "Printifying $infile"
 
 # Generate PNG files from the input PDF
 echo "Generating PNG files with resolution of $resolution DPI"
-run_command pdftoppm -png -r "$resolution" "$infile" "$tmpdir/.p"
+run_command pdftoppm -png -r "$resolution" "$infile" "$tmpdir/p"
 
 # Create adapted versions of the PNG files
 echo "Creating adapted versions of each PNG"
-run_command find "$tmpdir" -name ".p*.png" -execdir \
-    convert -density "$resolution" "{}" -adaptive-sharpen 1 -colorspace Gray -brightness-contrast "${brightness}x${contrast}" -quality 100 "{%.png}_adapted.png" \;
+png_files=$(find "$tmpdir" -name "p*.png")
+run_command prettify_pngs $png_files
 
 # Convert adapted PNG files to PDFs
 echo "Converting adapted PNG files to PDFs"
-run_command find "$tmpdir" -name "*_adapted.png" -execdir \
-    convert "{}" "{%.png}.pdf" \;
+adapted_png_files=$(find "$tmpdir" -name "*_adapted.png")
+run_command convert_pngs_to_pdfs $adapted_png_files
 
 # Concatenate the individual PDFs into one
 echo "Concatenating individual PDFs"
@@ -185,7 +217,17 @@ run_command pdftk "$tmpdir"/*_adapted.pdf cat output "$tmpdir/bw.pdf"
 
 # Resize PDF to the desired page format
 echo "Resizing PDF to desired page format"
-run_command pdfjam --paper "$pageformat" --outfile "$outfile" "$tmpdir/bw.pdf"
+run_command gs \
+            -sDEVICE=pdfwrite \
+            -dCompatibilityLevel=1.4 \
+            -dNOPAUSE \
+            -dQUIET \
+            -dBATCH \
+            -dPDFFitPage \
+            -dFIXEDMEDIA \
+            -sPAPERSIZE="$pageformat" \
+            -sOutputFile="$outfile" \
+            "$tmpdir/bw.pdf"
 
 echo "Done. Output saved to $outfile"
 exit 0
