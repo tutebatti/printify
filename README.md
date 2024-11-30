@@ -28,3 +28,7 @@ Dependencies:
 
 Author: Florian Jäckel (tutebatti)
 Date: 2024-11
+
+## TODO
+
+- [ ] Optimize size of pdf output, possibly analyzing input
